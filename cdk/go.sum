@@ -1,0 +1,4 @@
+github.com/aws/aws-cdk-go/awscdk/v2 v2.158.0/go.mod h1:DKU6PSvsf02PiyVR5JB4uIvcUElwXIgFKGiAehqIORY=
+github.com/aws/constructs-go/constructs/v10 v10.3.0/go.mod h1:GgzwIwoRJ2UYsr3SU+JhAl+gq5j39bEMYf8ev3J+s9s=
+github.com/aws/jsii-runtime-go v1.103.1/go.mod h1:PPR8BRc8cv9lDs5gDPe2SGG4+crOahE4SRrNHR1SvhA=
+github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
