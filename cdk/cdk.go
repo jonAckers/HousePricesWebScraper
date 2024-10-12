@@ -6,9 +6,11 @@ import (
 
 	"github.com/aws/aws-cdk-go/awscdk/v2"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awsec2"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awsiam"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awslambda"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awsrds"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awss3assets"
+	"github.com/aws/aws-cdk-go/awscdk/v2/triggers"
 	"github.com/aws/constructs-go/constructs/v10"
 	"github.com/aws/jsii-runtime-go"
 )
@@ -48,25 +50,40 @@ func NewHousePricesStack(scope constructs.Construct, id string, props *CdkStackP
 		Vpc:            vpc,
 		SecurityGroups: &[]awsec2.ISecurityGroup{securityGroup},
 		InstanceType:   awsec2.InstanceType_Of(awsec2.InstanceClass_T3, awsec2.InstanceSize_MICRO),
-		Credentials:    awsrds.Credentials_FromGeneratedSecret(jsii.String("postgres"), &awsrds.CredentialsBaseOptions{}),
+		Credentials:    awsrds.Credentials_FromGeneratedSecret(jsii.String("dbadmin"), &awsrds.CredentialsBaseOptions{}),
 		DatabaseName:   jsii.String(DATABASE_NAME),
 	})
 
-	// Create Lambda function and grant read access to RDS
-	lambdaFunction := awslambda.NewFunction(stack, jsii.String("HousePriceLambda"), &awslambda.FunctionProps{
+	// Create a trigger to update the database in case of any new migrations
+	deployDbTrigger := triggers.NewTriggerFunction(stack, jsii.String("DeployDatabaseTrigger"), &triggers.TriggerFunctionProps{
 		Runtime: awslambda.Runtime_PROVIDED_AL2023(),
 		Handler: jsii.String("bootstrap"),
-		Code:    awslambda.Code_FromAsset(jsii.String(filepath.Join("..", "./lambda/")), &awss3assets.AssetOptions{}),
+		Code:    awslambda.Code_FromAsset(jsii.String(filepath.Join("..", "./database/")), &awss3assets.AssetOptions{}),
+		Vpc: vpc,
 		Environment: &map[string]*string{
-			"DB_HOST":     rdsInstance.InstanceEndpoint().Hostname(),
-			"DB_NAME":     jsii.String(DATABASE_NAME),
-			"DB_USER":     jsii.String("postgres"),
+			"SECRET_NAME": rdsInstance.Secret().SecretArn(),
+		},
+	})
+	deployDbTrigger.AddToRolePolicy(
+        awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
+            Actions:   jsii.Strings("secretsmanager:GetSecretValue"),
+            Resources: &[]*string{rdsInstance.Secret().SecretArn()},
+        }),
+    )
+	deployDbTrigger.Node().AddDependency(rdsInstance)
+
+	// Create Lambda function and grant read access to the RDS secret
+	scraperLambda := awslambda.NewFunction(stack, jsii.String("HousePriceLambda"), &awslambda.FunctionProps{
+		Runtime: awslambda.Runtime_PROVIDED_AL2023(),
+		Handler: jsii.String("bootstrap"),
+		Code:    awslambda.Code_FromAsset(jsii.String(filepath.Join("..", "./scraper/")), &awss3assets.AssetOptions{}),
+		Environment: &map[string]*string{
 			"SECRET_NAME": rdsInstance.Secret().SecretArn(),
 		},
 		Vpc: vpc,
 		SecurityGroups: &[]awsec2.ISecurityGroup{securityGroup},
 	})
-	rdsInstance.Secret().GrantRead(lambdaFunction, jsii.Strings())
+	rdsInstance.Secret().GrantRead(scraperLambda, jsii.Strings())
 
 	return stack
 }
