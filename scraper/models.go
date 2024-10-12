@@ -1,6 +1,7 @@
 package main
 
 type Property struct {
+	Id             int    `json:"id"`
 	Bedrooms       int    `json:"bedrooms"`
 	Bathrooms      int    `json:"bathrooms"`
 	Description    string `json:"summary"`
