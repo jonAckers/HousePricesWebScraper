@@ -83,7 +83,12 @@ func NewHousePricesStack(scope constructs.Construct, id string, props *CdkStackP
 		Vpc: vpc,
 		SecurityGroups: &[]awsec2.ISecurityGroup{securityGroup},
 	})
-	rdsInstance.Secret().GrantRead(scraperLambda, jsii.Strings())
+	scraperLambda.AddToRolePolicy(
+        awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
+            Actions:   jsii.Strings("secretsmanager:GetSecretValue"),
+            Resources: &[]*string{rdsInstance.Secret().SecretArn()},
+        }),
+    )
 
 	return stack
 }

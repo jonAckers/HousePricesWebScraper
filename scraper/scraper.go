@@ -2,9 +2,10 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
-	"log"
+	"log/slog"
 	"regexp"
+
+	"github.com/jonackers/HousePricesWebScraper/scraper/internal/database"
 
 	"github.com/gocolly/colly"
 )
@@ -30,20 +31,55 @@ func parseHouseDetails() []Property {
 			// Parse JSON
 			err := json.Unmarshal([]byte(jsonData[1]), &properties)
 			if err != nil {
-				fmt.Println("Error parsing JSON:", err)
+				slog.Error("Error parsing JSON:", err)
 				return
 			}
 
 			// Loop through the properties and print the required data
-			log.Printf("Scrape complete! Found %d properties.\n", len(properties))
+			slog.Info("Scrape complete!", "property_count", len(properties))
 		}
 	})
 
 	// Visit website
 	err := c.Visit(RIGHTMOVE_URL)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("Failed to visit rightmove", "err", err)
 	}
 
 	return properties
+}
+
+func (cfg *dbConfig) getNewProperties(properties []Property) ([]Property, error) {
+	var newProperties []Property
+
+	// Iterate through the properties to see if there are any new ones
+	for _, property := range properties {
+		_, err := cfg.db.GetPropertyById(cfg.ctx, int32(property.Id))
+		// Property not found in the database, so must be new
+		if err == nil {
+			continue
+		}
+
+		slog.Info("New property found!", "property", property)
+
+		// Add new property to the database
+		newProperties = append(newProperties, property)
+		cfg.db.CreateProperty(cfg.ctx, database.CreatePropertyParams{
+			ID: int32(property.Id),
+			Bedrooms: int32(property.Bedrooms),
+			Bathrooms: int32(property.Bathrooms),
+			Description: property.Description,
+			Address: property.Address,
+			Latitude: property.Location.Latitude,
+			Longitude: property.Location.Longitude,
+			Type: property.Type,
+			ListingUpdateReason: property.ListingUpdate.Reason,
+			PriceAmount: int32(property.Price.Amount),
+			PriceCurrencyCode: property.Price.CurrencyCode,
+			EstateAgentTelephone: property.EstateAgent.Telephone,
+			EstateAgentName: property.EstateAgent.Name,
+		})
+	}
+
+	return newProperties, nil
 }
