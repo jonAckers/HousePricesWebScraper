@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-cdk-go/awscdk/v2/awslambda"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awsrds"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awss3assets"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awsses"
 	"github.com/aws/aws-cdk-go/awscdk/v2/triggers"
 	"github.com/aws/constructs-go/constructs/v10"
 	"github.com/aws/jsii-runtime-go"
@@ -97,6 +98,18 @@ func NewHousePricesStack(scope constructs.Construct, id string, props *CdkStackP
 		Schedule: awsevents.Schedule_Rate(awscdk.Duration_Hours(jsii.Number(1))),
 	})
 	rule.AddTarget(awseventstargets.NewLambdaFunction(scraperLambda, &awseventstargets.LambdaFunctionProps{}))
+
+	// Configure Simple Email Service
+	// Verify outbound email address
+	awsses.NewEmailIdentity(stack, jsii.String("VerifiedEmailIdentity"), &awsses.EmailIdentityProps{
+		Identity: awsses.Identity_Email(jsii.String("jonathon_ackers@hotmail.co.uk")),
+	})
+	// Grant SES permissions to Lambda to send emails
+	scraperLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
+		Effect:    awsiam.Effect_ALLOW,
+		Actions:   jsii.Strings("ses:SendEmail", "ses:SendRawEmail"),
+		Resources: jsii.Strings("*"),
+	}))
 
 	return stack
 }

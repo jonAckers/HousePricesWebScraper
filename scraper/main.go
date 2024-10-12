@@ -5,8 +5,12 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"os"
 
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/ses"
 	"github.com/jonackers/HousePricesWebScraper/scraper/internal/database"
 	"github.com/jonackers/HousePricesWebScraper/utils"
 	_ "github.com/lib/pq"
@@ -52,10 +56,65 @@ func runScraper(ctx context.Context) (string, error) {
 			return "Scraping failure", err
 		}
 
-		slog.Info("Found new properties!", "count", len(newProperties))
+		// Publish the new properties via SES
+		if len(newProperties) > 0 {
+			slog.Info("Found new properties!", "count", len(newProperties))
+			emailNewProperties(newProperties)
+		}
 	}
 
 	return "success", nil
+}
+
+func emailNewProperties(properties []Property) {
+	// Get the AWS region from the environment variable
+	region := os.Getenv("AWS_REGION")
+
+	// Create an AWS session
+	sess, err := session.NewSession(&aws.Config{
+		Region: aws.String(region),
+	})
+	if err != nil {
+		slog.Error("Failed to create AWS Session", "error", err)
+		return
+	}
+
+	// Create an SES client
+	svc := ses.New(sess)
+
+	// Email subject and body
+	subject := "New properties found!"
+	body := buildEmailBody(properties)
+
+	// Construct the email message
+	emailAddr := "jonathon_ackers@hotmail.co.uk"
+	input := &ses.SendEmailInput{
+		Source: aws.String(emailAddr),
+		Destination: &ses.Destination{
+			ToAddresses: []*string{
+				aws.String(emailAddr),
+			},
+		},
+		Message: &ses.Message{
+			Subject: &ses.Content{
+				Data: aws.String(subject),
+			},
+			Body: &ses.Body{
+				Text: &ses.Content{
+					Data: aws.String(body),
+				},
+			},
+		},
+	}
+
+	// Send the email
+	result, err := svc.SendEmail(input)
+	if err != nil {
+		slog.Error("Failed to send email", "error", err)
+		return
+	}
+
+	slog.Info("Successfully sent email!", "message_id", *result.MessageId)
 }
 
 func main() {
