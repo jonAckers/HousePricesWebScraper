@@ -6,6 +6,8 @@ import (
 
 	"github.com/aws/aws-cdk-go/awscdk/v2"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awsec2"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awsevents"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awseventstargets"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awsiam"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awslambda"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awsrds"
@@ -65,15 +67,15 @@ func NewHousePricesStack(scope constructs.Construct, id string, props *CdkStackP
 		},
 	})
 	deployDbTrigger.AddToRolePolicy(
-        awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
-            Actions:   jsii.Strings("secretsmanager:GetSecretValue"),
-            Resources: &[]*string{rdsInstance.Secret().SecretArn()},
-        }),
-    )
+		awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
+			Actions:   jsii.Strings("secretsmanager:GetSecretValue"),
+			Resources: &[]*string{rdsInstance.Secret().SecretArn()},
+		}),
+	)
 	deployDbTrigger.Node().AddDependency(rdsInstance)
 
 	// Create Lambda function and grant read access to the RDS secret
-	scraperLambda := awslambda.NewFunction(stack, jsii.String("HousePriceLambda"), &awslambda.FunctionProps{
+	scraperLambda := awslambda.NewFunction(stack, jsii.String("HousePriceScraper"), &awslambda.FunctionProps{
 		Runtime: awslambda.Runtime_PROVIDED_AL2023(),
 		Handler: jsii.String("bootstrap"),
 		Code:    awslambda.Code_FromAsset(jsii.String(filepath.Join("..", "./scraper/")), &awss3assets.AssetOptions{}),
@@ -84,11 +86,17 @@ func NewHousePricesStack(scope constructs.Construct, id string, props *CdkStackP
 		SecurityGroups: &[]awsec2.ISecurityGroup{securityGroup},
 	})
 	scraperLambda.AddToRolePolicy(
-        awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
-            Actions:   jsii.Strings("secretsmanager:GetSecretValue"),
-            Resources: &[]*string{rdsInstance.Secret().SecretArn()},
-        }),
-    )
+		awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
+			Actions:   jsii.Strings("secretsmanager:GetSecretValue"),
+			Resources: &[]*string{rdsInstance.Secret().SecretArn()},
+		}),
+	)
+
+	// Create an EventBridge rule to schedule Lambda execution every hour
+	rule := awsevents.NewRule(stack, jsii.String("ScrapeHousePricesEveryHour"), &awsevents.RuleProps{
+		Schedule: awsevents.Schedule_Rate(awscdk.Duration_Hours(jsii.Number(1))),
+	})
+	rule.AddTarget(awseventstargets.NewLambdaFunction(scraperLambda, &awseventstargets.LambdaFunctionProps{}))
 
 	return stack
 }
