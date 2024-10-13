@@ -23,3 +23,23 @@ RETURNING *;
 SELECT * FROM properties
 WHERE id=$1;
 --
+
+-- name: UpdatePropertyById :exec
+UPDATE properties
+SET
+    bedrooms=$1,
+    bathrooms=$2,
+    description=$3,
+    address=$4,
+    latitude=$5,
+    longitude=$6,
+    type=$7,
+    listing_update_reason=$8,
+    listing_update_date=$9,
+    price_amount=$10,
+    price_currency_code=$11,
+    estate_agent_telephone=$12,
+    estate_agent_name=$13
+WHERE
+    id = $14
+RETURNING *;

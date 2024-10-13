@@ -1,5 +1,7 @@
 package main
 
+import "time"
+
 type Property struct {
 	Id             int    `json:"id"`
 	Bedrooms       int    `json:"bedrooms"`
@@ -12,8 +14,8 @@ type Property struct {
 	} `json:"location"`
 	Type            string `json:"propertySubType"`
 	ListingUpdate   struct {
-		Reason string `json:"listingUpdateReason"`
-		Date   string `json:"listingUpdateDate"`
+		Reason string    `json:"listingUpdateReason"`
+		Date   time.Time `json:"listingUpdateDate"`
 	} `json:"listingUpdate"`
 	Price struct {
 		Amount       int    `json:"amount"`
@@ -23,4 +25,9 @@ type Property struct {
 		Telephone  string `json:"contactTelephone"`
 		Name       string `json:"branchDisplayName"`
 	} `json:"customer"`
+}
+
+type propertyLists struct {
+	new []Property
+	updated []Property
 }

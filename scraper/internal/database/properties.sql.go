@@ -114,3 +114,62 @@ func (q *Queries) GetPropertyById(ctx context.Context, id int32) (Property, erro
 	)
 	return i, err
 }
+
+const updatePropertyById = `-- name: UpdatePropertyById :exec
+
+UPDATE properties
+SET
+    bedrooms=$1,
+    bathrooms=$2,
+    description=$3,
+    address=$4,
+    latitude=$5,
+    longitude=$6,
+    type=$7,
+    listing_update_reason=$8,
+    listing_update_date=$9,
+    price_amount=$10,
+    price_currency_code=$11,
+    estate_agent_telephone=$12,
+    estate_agent_name=$13
+WHERE
+    id = $14
+RETURNING bedrooms, bathrooms, description, address, latitude, longitude, type, listing_update_reason, listing_update_date, price_amount, price_currency_code, estate_agent_telephone, estate_agent_name, created_at, id
+`
+
+type UpdatePropertyByIdParams struct {
+	Bedrooms             int32
+	Bathrooms            int32
+	Description          string
+	Address              string
+	Latitude             float64
+	Longitude            float64
+	Type                 string
+	ListingUpdateReason  string
+	ListingUpdateDate    time.Time
+	PriceAmount          int32
+	PriceCurrencyCode    string
+	EstateAgentTelephone string
+	EstateAgentName      string
+	ID                   int32
+}
+
+func (q *Queries) UpdatePropertyById(ctx context.Context, arg UpdatePropertyByIdParams) error {
+	_, err := q.db.ExecContext(ctx, updatePropertyById,
+		arg.Bedrooms,
+		arg.Bathrooms,
+		arg.Description,
+		arg.Address,
+		arg.Latitude,
+		arg.Longitude,
+		arg.Type,
+		arg.ListingUpdateReason,
+		arg.ListingUpdateDate,
+		arg.PriceAmount,
+		arg.PriceCurrencyCode,
+		arg.EstateAgentTelephone,
+		arg.EstateAgentName,
+		arg.ID,
+	)
+	return err
+}

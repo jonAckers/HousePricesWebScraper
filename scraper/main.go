@@ -54,22 +54,22 @@ func runScraper(ctx context.Context) (string, error) {
 		return "Failed to scrape Rightmove", err
 	}
 	if len(foundProperties) > 0 {
-		newProperties, err := cfg.getNewProperties(foundProperties)
+		propertyLists, err := cfg.getNewProperties(foundProperties)
 		if err != nil {
 			return "Scraping failure", err
 		}
 
-		// Publish the new properties via SES
-		if len(newProperties) > 0 {
-			slog.Info("Found new properties!", "count", len(newProperties))
-			emailNewProperties(newProperties)
+		// Publish the new/updated properties via SES
+		if len(propertyLists.new) > 0 || len(propertyLists.updated) > 0 {
+			slog.Info("Found changed properties!", "new", len(propertyLists.new), "updated", len(propertyLists.updated))
+			emailPropertyLists(propertyLists)
 		}
 	}
 
 	return "success", nil
 }
 
-func emailNewProperties(properties []Property) {
+func emailPropertyLists(properties propertyLists) {
 	// Get the AWS region from the environment variable
 	region := os.Getenv("AWS_REGION")
 
@@ -86,7 +86,7 @@ func emailNewProperties(properties []Property) {
 	svc := ses.New(sess)
 
 	// Email subject and body
-	subject := "New properties found!"
+	subject := "Rightmove properties found!"
 	body := buildEmailBody(properties)
 
 	// Construct the email message

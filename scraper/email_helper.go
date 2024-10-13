@@ -5,13 +5,31 @@ import (
 	"strings"
 )
 
-func buildEmailBody(properties []Property) string {
+func buildEmailBody(properties propertyLists) string {
 	var builder strings.Builder
 
 	// Add the header
-	builder.WriteString(fmt.Sprintf("There are %d new properties on Rightmove!\n\n", len(properties)))
+	builder.WriteString(fmt.Sprintf("There are %d new properties and %d updated properties on Rightmove!\n\n",
+						len(properties.new), len(properties.updated)))
 
-	// Add each property's details
+	// Add new property details
+	if len(properties.new) > 0 {
+		builder.WriteString("\nNew Properties\n")
+		builder.WriteString(buildBodyForList(properties.new))
+	}
+
+	// Add updated property details
+	if len(properties.updated) > 0 {
+		builder.WriteString("\nUpdated Properties\n")
+		builder.WriteString(buildBodyForList(properties.updated))
+	}
+
+	return builder.String()
+}
+
+func buildBodyForList(properties []Property) string {
+	var builder strings.Builder
+
 	for _, property := range properties {
 		builder.WriteString("----------\n")
 		builder.WriteString(fmt.Sprintf("%s\n", property.Address))

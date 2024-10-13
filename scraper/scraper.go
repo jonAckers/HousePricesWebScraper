@@ -49,37 +49,81 @@ func parseHouseDetails() ([]Property, error) {
 	return properties, err
 }
 
-func (cfg *dbConfig) getNewProperties(properties []Property) ([]Property, error) {
+func (cfg *dbConfig) getNewProperties(properties []Property) (propertyLists, error) {
 	var newProperties []Property
+	var updatedProperties []Property
 
 	// Iterate through the properties to see if there are any new ones
 	for _, property := range properties {
-		_, err := cfg.db.GetPropertyById(cfg.ctx, int32(property.Id))
-		// Property not found in the database, so must be new
+		dbProperty, err := cfg.db.GetPropertyById(cfg.ctx, int32(property.Id))
+
 		if err == nil {
-			continue
+			// Property found in the database, so must not be new
+			// Check if property has been updated
+			if (property.ListingUpdate.Date.After(dbProperty.ListingUpdateDate)) {
+				slog.Info("Existing property updated!", "property", property)
+				err := cfg.updateDbProperty(property)
+				if err != nil {
+					return propertyLists{}, err
+				}
+				updatedProperties = append(updatedProperties, property)
+			}
+		} else {
+			// Property not found, so must be new
+			slog.Info("New property found!", "property", property)
+			// Add new property to the database and add it to list to return
+			err := cfg.addNewPropertyToDb(property)
+			if err != nil {
+				return propertyLists{}, err
+			}
+			newProperties = append(newProperties, property)
 		}
-
-		slog.Info("New property found!", "property", property)
-
-		// Add new property to the database
-		newProperties = append(newProperties, property)
-		cfg.db.CreateProperty(cfg.ctx, database.CreatePropertyParams{
-			ID: int32(property.Id),
-			Bedrooms: int32(property.Bedrooms),
-			Bathrooms: int32(property.Bathrooms),
-			Description: property.Description,
-			Address: property.Address,
-			Latitude: property.Location.Latitude,
-			Longitude: property.Location.Longitude,
-			Type: property.Type,
-			ListingUpdateReason: property.ListingUpdate.Reason,
-			PriceAmount: int32(property.Price.Amount),
-			PriceCurrencyCode: property.Price.CurrencyCode,
-			EstateAgentTelephone: property.EstateAgent.Telephone,
-			EstateAgentName: property.EstateAgent.Name,
-		})
 	}
 
-	return newProperties, nil
+	return propertyLists{
+		new: newProperties,
+		updated: updatedProperties,
+	}, nil
+}
+
+func (cfg *dbConfig) addNewPropertyToDb(property Property) error {
+	_, err := cfg.db.CreateProperty(cfg.ctx, database.CreatePropertyParams{
+		ID: int32(property.Id),
+		Bedrooms: int32(property.Bedrooms),
+		Bathrooms: int32(property.Bathrooms),
+		Description: property.Description,
+		Address: property.Address,
+		Latitude: property.Location.Latitude,
+		Longitude: property.Location.Longitude,
+		Type: property.Type,
+		ListingUpdateReason: property.ListingUpdate.Reason,
+		ListingUpdateDate: property.ListingUpdate.Date,
+		PriceAmount: int32(property.Price.Amount),
+		PriceCurrencyCode: property.Price.CurrencyCode,
+		EstateAgentTelephone: property.EstateAgent.Telephone,
+		EstateAgentName: property.EstateAgent.Name,
+	})
+
+	return err
+}
+
+func (cfg *dbConfig) updateDbProperty(property Property) error {
+	err := cfg.db.UpdatePropertyById(cfg.ctx, database.UpdatePropertyByIdParams{
+		ID: int32(property.Id),
+		Bedrooms: int32(property.Bedrooms),
+		Bathrooms: int32(property.Bathrooms),
+		Description: property.Description,
+		Address: property.Address,
+		Latitude: property.Location.Latitude,
+		Longitude: property.Location.Longitude,
+		Type: property.Type,
+		ListingUpdateReason: property.ListingUpdate.Reason,
+		ListingUpdateDate: property.ListingUpdate.Date,
+		PriceAmount: int32(property.Price.Amount),
+		PriceCurrencyCode: property.Price.CurrencyCode,
+		EstateAgentTelephone: property.EstateAgent.Telephone,
+		EstateAgentName: property.EstateAgent.Name,
+	})
+
+	return err
 }
