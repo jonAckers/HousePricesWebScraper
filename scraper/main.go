@@ -49,7 +49,10 @@ func runScraper(ctx context.Context) (string, error) {
 	}
 
 	// Get properties from Rightmove
-	foundProperties := parseHouseDetails()
+	foundProperties, err := parseHouseDetails()
+	if err != nil {
+		return "Failed to scrape Rightmove", err
+	}
 	if len(foundProperties) > 0 {
 		newProperties, err := cfg.getNewProperties(foundProperties)
 		if err != nil {

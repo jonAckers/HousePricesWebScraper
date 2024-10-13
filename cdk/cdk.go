@@ -36,6 +36,20 @@ func NewHousePricesStack(scope constructs.Construct, id string, props *CdkStackP
 	// Create a VPC
 	vpc := awsec2.NewVpc(stack, jsii.String("HousePriceVpc"), &awsec2.VpcProps{
 		MaxAzs: jsii.Number(2),
+		SubnetConfiguration: &[]*awsec2.SubnetConfiguration{
+			{
+				SubnetType: awsec2.SubnetType_PUBLIC,
+				Name:       jsii.String("Public"),
+			},
+			{
+				SubnetType: awsec2.SubnetType_PRIVATE_WITH_EGRESS,
+				Name:       jsii.String("PrivateWithEgress"),
+			},
+			{
+				SubnetType: awsec2.SubnetType_PRIVATE_ISOLATED,
+				Name:       jsii.String("Private"),
+			},
+		},
 	})
 
 	// Create a Security Group that allows inbound traffic on port 5432 for PostgreSQL
@@ -51,10 +65,15 @@ func NewHousePricesStack(scope constructs.Construct, id string, props *CdkStackP
 			Version: awsrds.PostgresEngineVersion_VER_13(),
 		}),
 		Vpc:            vpc,
+		VpcSubnets: &awsec2.SubnetSelection{
+			SubnetType: awsec2.SubnetType_PRIVATE_ISOLATED,
+		},
 		SecurityGroups: &[]awsec2.ISecurityGroup{securityGroup},
 		InstanceType:   awsec2.InstanceType_Of(awsec2.InstanceClass_T3, awsec2.InstanceSize_MICRO),
 		Credentials:    awsrds.Credentials_FromGeneratedSecret(jsii.String("dbadmin"), &awsrds.CredentialsBaseOptions{}),
 		DatabaseName:   jsii.String(DATABASE_NAME),
+		MultiAz:       jsii.Bool(false),
+		PubliclyAccessible: jsii.Bool(false),
 	})
 
 	// Create a trigger to update the database in case of any new migrations
@@ -63,6 +82,9 @@ func NewHousePricesStack(scope constructs.Construct, id string, props *CdkStackP
 		Handler: jsii.String("bootstrap"),
 		Code:    awslambda.Code_FromAsset(jsii.String(filepath.Join("..", "./database/")), &awss3assets.AssetOptions{}),
 		Vpc: vpc,
+		VpcSubnets: &awsec2.SubnetSelection{
+			SubnetType: awsec2.SubnetType_PRIVATE_ISOLATED,
+		},
 		Environment: &map[string]*string{
 			"SECRET_NAME": rdsInstance.Secret().SecretArn(),
 		},
@@ -80,11 +102,15 @@ func NewHousePricesStack(scope constructs.Construct, id string, props *CdkStackP
 		Runtime: awslambda.Runtime_PROVIDED_AL2023(),
 		Handler: jsii.String("bootstrap"),
 		Code:    awslambda.Code_FromAsset(jsii.String(filepath.Join("..", "./scraper/")), &awss3assets.AssetOptions{}),
+		Vpc: vpc,
+		VpcSubnets: &awsec2.SubnetSelection{
+			SubnetType: awsec2.SubnetType_PRIVATE_WITH_EGRESS,
+		},
 		Environment: &map[string]*string{
 			"SECRET_NAME": rdsInstance.Secret().SecretArn(),
 		},
-		Vpc: vpc,
 		SecurityGroups: &[]awsec2.ISecurityGroup{securityGroup},
+		Timeout: awscdk.Duration_Seconds(jsii.Number(30)),
 	})
 	scraperLambda.AddToRolePolicy(
 		awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
@@ -92,6 +118,14 @@ func NewHousePricesStack(scope constructs.Construct, id string, props *CdkStackP
 			Resources: &[]*string{rdsInstance.Secret().SecretArn()},
 		}),
 	)
+
+	// Create VPC endpoints for
+	vpc.AddInterfaceEndpoint(jsii.String("SecretsManagerVpcEndpoint"), &awsec2.InterfaceVpcEndpointOptions{
+		Service: awsec2.InterfaceVpcEndpointAwsService_SECRETS_MANAGER(),
+	})
+	vpc.AddInterfaceEndpoint(jsii.String("RdsVpcEndpoint"), &awsec2.InterfaceVpcEndpointOptions{
+		Service: awsec2.InterfaceVpcEndpointAwsService_RDS(),
+	})
 
 	// Create an EventBridge rule to schedule Lambda execution every hour
 	rule := awsevents.NewRule(stack, jsii.String("ScrapeHousePricesEveryHour"), &awsevents.RuleProps{

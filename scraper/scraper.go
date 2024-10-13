@@ -12,7 +12,7 @@ import (
 
 const RIGHTMOVE_URL = "https://www.rightmove.co.uk/property-for-sale/find.html?locationIdentifier=OUTCODE%5E1369&maxPrice=450000&radius=10.0&sortType=6&propertyTypes=&includeSSTC=false&mustHave=&dontShow=&furnishTypes=&keywords="
 
-func parseHouseDetails() []Property {
+func parseHouseDetails() ([]Property, error) {
 	var properties []Property
 
 	// Initialise the collector
@@ -46,7 +46,7 @@ func parseHouseDetails() []Property {
 		slog.Error("Failed to visit rightmove", "err", err)
 	}
 
-	return properties
+	return properties, err
 }
 
 func (cfg *dbConfig) getNewProperties(properties []Property) ([]Property, error) {
